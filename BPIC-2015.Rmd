@@ -1,0 +1,281 @@
+---
+title: "BPIC-2015"
+author: "lars pijnappel"
+date: "30 augustus 2015"
+output: html_document
+---
+
+***
+See the [BPI Challenge 2015](www.win.tue.nl/bpi/2015/challenge) for more info regarding the datasets.
+
+***
+
+
+## Import data by means of `lapply` and `ldply`
+> and show imported data size (MB)
+
+```{r}
+fpn <- list.files( 'data BPIC-2015', pattern = '.csv', full.names = TRUE ) ## file path name
+fn <- basename( fpn )   ## file name
+
+## total size of 5 csv files = 74,30 MB
+```
+
+### lapply
+```{r}
+l_csv <- lapply( fpn, read.csv ) ## import selected csv files
+comment( l_csv ) <- "data imported with lapply"
+
+## lapply is fast and output is stored in a list object.
+# > system.time( lapply( fpn, read.csv ))
+#    user  system elapsed 
+#    7.63    0.06    7.69 
+paste( as.integer( object.size( l_csv )/1024^2 ), " MB", sep="" )
+```
+
+### ldply
+```{r}
+require( plyr )
+names( fpn ) <- basename( fpn )
+df_csv <- ldply( fpn, read.csv, stringsAsFactors = FALSE )
+comment( df_csv ) <- "data imported with ldply + read.csv (default arguments)"
+df_csvchar <- ldply( fpn, .fun = read.csv, colClasses = "character", stringsAsFactors = FALSE )
+comment( df_csvchar ) <- "data imported with ldply + read.csv (colClasses='character')"
+
+## ldply is faster and output is stored in a single data.frame
+# > system.time( ldply( fpn , read.csv, stringsAsFactors = FALSE ))
+#    user  system elapsed 
+#    5.66    0.06    5.80
+paste( as.integer( object.size( df_csv )/1024^2 ), " MB", sep="" )
+paste( as.integer( object.size( df_csvchar )/1024^2 ), " MB", sep="" )
+```
+
+
+## Show numbers of (1) observations and (2) variables per file
+
+### lapply
+```{r}
+l_dim <- lapply( l_csv, dim )
+names( l_dim ) <- fn
+l_dim
+```
+
+### ldply
+```{r}
+## ldply has added variable .id (which contains the source file name). 
+## Consider this variable as categorical and trim the filename to first 8 characters.
+df_csv$.id <- factor( strtrim( df_csv$.id, 8 ))      
+as.data.frame( summary( df_csv$.id ) )
+dim( df_csv )
+
+# df_csvchar$.id <- factor(df_csvchar$.id)      ## Consider this variable as categorical
+# as.data.frame( summary( df_csvchar$.id ) )
+# dim( df_csvchar )
+```
+
+
+## Determine if all files have same variable names 
+> check consistency column names and show them
+
+### lapply
+```{r}
+cn <- lapply( l_csv, colnames )
+for ( i in seq_along(cn[-length(cn)]) ) { ## loop, but exclude last cn
+  x <- identical(cn[i], cn[i+1])
+  print( paste('Identical columnnames for csv ', i, ' and ', i+1, ' is ', x, sep = '') )
+}
+
+# cn[1]
+```
+
+### ldply
+```{r}
+names( df_csv )
+```
+
+
+## Show number of observations per file
+### lapply
+```{r}
+barplot( unlist(lapply( l_csv, nrow )), ylab = 'observations', col = 'cyan' )
+```
+
+### ldply
+```{r}
+barplot( summary( df_csv$.id ), ylab = 'observations', horiz = TRUE, col = 'green')
+```
+
+
+## Show the structure of the imported data
+### ldply
+```{r}
+str( df_csv )
+# str( df_csvchar )
+```
+
+
+## Show a summary of the the imported data
+> BEFORE factorizing several variables
+
+```{r}
+summary( df_csv )
+# summary( df_csvchar )
+```
+
+
+## Show a summary of the the imported data
+> AFTER factorizing several variables
+```{r eval=FALSE}
+df2 <- df_csv
+df2$Resource <- factor( df2$Resource )
+df2$X.case..IDofConceptCase <- factor( df2$X.case..IDofConceptCase )
+df2$X.case..Responsible_actor <- factor( df2$X.case..Responsible_actor )
+df2$X.case..caseProcedure <- factor( df2$X.case..caseProcedure )
+df2$X.case..caseStatus <- factor( df2$X.case..caseStatus )
+summary( df2$X.case..caseStatus )
+summary( df2 )
+```
+
+
+## Show content of first obs. in readable format
+### lapply
+```{r eval = FALSE}
+t(head( l_csv[[1]], 1 ))
+```
+
+### ldply
+```{r}
+t(head( df_csv, 1 ))
+# t(head( df_csvchar, 1 ))
+```
+
+
+## Identicals
+```{r eval = FALSE, echo = TRUE}
+identical( l_csv[[1]][1,'action_code'], l_csv[[1]][1,'concept.name'])
+d1 <- as.character( l_csv[[1]][,'action_code'] )
+d2 <- as.character( l_csv[[1]][,'concept.name'] )
+identical( d1, d2)
+d3 <- as.character( l_csv[[1]][,'Activity'] )
+d4 <- as.character( l_csv[[1]][,'lifecycle.transition'] )
+
+d1[which(d2 %in% d1) == TRUE]
+d2[which(d2 %in% d1) == TRUE]
+d1[ ( d1 == d2 ) == FALSE]
+d2[ ( d1 == d2 ) == FALSE]
+
+d_all <- as.data.frame( cbind(d1,d2,d3,d4) )
+str(d_all)
+```
+
+
+## Count observations for each resource
+> variables: Resource / Responsible_actor / monitoringResource
+
+### lapply
+```{r eval = FALSE}
+## first create a working df
+csv1 <- l_csv[[1]]
+## variable 'responsible actor' is categorical, not quantitative.
+csv1$X.case..Responsible_actor <- factor( csv1$X.case..Responsible_actor)
+csv2 <- csv1$X.case..Responsible_actor
+comment(csv2) <- "one way of counting observations per responsible actor"
+# summary(csv1$X.case..Responsible_actor)
+csv3 <- as.matrix( summary(csv2) )
+csv3
+```
+
+### ldply
+> Sort the results by (1) csv-file and (2) total
+
+```{r}
+# df <- df_csv
+# role <- "Resource"
+# role <- "X.case..Responsible_actor"
+# role <- "monitoringResource"
+
+role_summary <- function ( role ) {
+        ## convert input parameters into an R object df$variable
+        ## www.r-bloggers.com/converting-a-string-to-a-variable-name-on-the-fly-and-vice-versa-in-r/
+        dfv <- eval( parse( text = paste("df_csv", "$", role, sep = "" )))
+        ## Observations per role: split the counts per csv file
+        l_role <- tapply( factor( dfv ), df_csv$.id, summary )
+        summary(l_role)
+        
+        ## QAD: only csv 1 contains NA's for responsible actors: remove it.
+        if ( role == "X.case..Responsible_actor" ) l_role[[1]] <- l_role[[1]][ -length( l_role[[1]] ) ]
+        
+        l_role <- do.call( cbind, l_role )
+        l_role[ order( l_role[,1], l_role[,2], l_role[,3], l_role[,4], l_role[,5], decreasing = TRUE ), ]   
+}
+
+```
+
+
+#### Resource
+```{r}
+role_summary( role = "Resource" )
+```
+
+
+#### Responsible_actor
+```{r}
+role_summary( role = "X.case..Responsible_actor" )
+```
+
+```{r eval = FALSE}
+## Observations per Responsible Actor: split the counts per csv file
+l_ora <- tapply( factor( df_csv$X.case..Responsible_actor ), df_csv$.id, summary )
+
+## only csv 1 contains NA's for responsible actors: remove it.
+l_ora[[1]] <- l_ora[[1]][ -length( l_ora[[1]] ) ]
+l_ora <- do.call( cbind, l_ora )
+l_ora[ order( l_ora[,1], l_ora[,2], l_ora[,3], l_ora[,4], l_ora[,5], decreasing = TRUE ), ]
+```
+
+#### monitoringResource
+```{r}
+role_summary( role = "monitoringResource" )
+```
+
+
+## Per csv, indicate nr. of unique values
+
+### 1
+```{r eval = FALSE, echo = FALSE}
+l <- data.frame( matrix( nrow=5, ncol=7 ))
+comment(l) <- "per csv, indicate nr. of unique values"
+colnames(l) <- c("caseStatus", "caseProcedure", "IDofCOnceptCase", "concept.name", "ActivityNameNL", "ActivityNameEN", "requestComplete")
+for ( i in seq_along( l_csv )) {
+        l[i, 1] <- paste( levels( l_csv[[i]][,"X.case..caseStatus"] ), collapse = "/" )
+        l[i, 2] <- paste( levels( l_csv[[i]][,'X.case..caseProcedure'] ), collapse = "/" )
+        l[i, 3] <- length( unique( na.omit( l_csv[[i]][,'X.case..IDofConceptCase'] )))   # Remove NA's
+        l[i, 4] <- length( levels( l_csv[[i]][,'concept.name'] ))
+        l[i, 5] <- length( levels( l_csv[[i]][,'activityNameNL'] ))
+        l[i, 6] <- length( levels( l_csv[[i]][,'activityNameEN'] ))
+        l[i, 7] <- length( unique( l_csv[[i]][,'X.case..requestComplete'] ))
+}
+comment( l )
+l
+```
+
+### 2
+```{r eval = FALSE, echo = FALSE}
+anNL <- data.matrix( unique(l_csv[[1]][,'activityNameNL'] ))
+anNL <- cbind( anNL, 1:nrow( anNL ))
+anEN <- data.matrix( unique( l_csv[[1]][,'activityNameEN'] ))
+anEN <- cbind( anEN, 1:nrow( anEN ))
+cor( as.numeric( anNL[,2] ), as.numeric( anEN[,2] ))
+
+# correlation acitivity names
+can <- cbind( l_csv[[1]][,'activityNameNL'], l_csv[[1]][,'activityNameEN'])
+tail(can)
+cor( can[,1], can[,2] )
+```
+
+
+## Activities EN
+```{r eval = FALSE, echo = FALSE}
+anEN
+```
+
