@@ -29,6 +29,7 @@ names( fpn ) <- basename( fpn )
 # > system.time( lapply( fpn, read.csv ))
 #    user  system elapsed 
 #    7.63    0.06    7.69 
+
 l_csv <- lapply( fpn, read.csv ) ## import selected csv files
 comment( l_csv ) <- "data imported with lapply"
 paste( as.integer( object.size( l_csv )/1024^2 ), " MB", sep="" )
