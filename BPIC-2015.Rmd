@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ***
-See the [BPI Challenge 2015](www.win.tue.nl/bpi/2015/challenge) for more info regarding the datasets.
+More information regarding these BPI Challenge datasets can be found on the site of the [11th International Workshop on Business Process Intelligence 2015](http://www.win.tue.nl/bpi/2015/challenge).
 
 ***
 
@@ -16,37 +16,38 @@ See the [BPI Challenge 2015](www.win.tue.nl/bpi/2015/challenge) for more info re
 
 ```{r}
 fpn <- list.files( 'data BPIC-2015', pattern = '.csv', full.names = TRUE ) ## file path name
+
 fn <- basename( fpn )   ## file name
+names( fpn ) <- basename( fpn )
 
 ## total size of 5 csv files = 74,30 MB
 ```
 
 ### lapply
 ```{r}
-l_csv <- lapply( fpn, read.csv ) ## import selected csv files
-comment( l_csv ) <- "data imported with lapply"
-
 ## lapply is fast and output is stored in a list object.
 # > system.time( lapply( fpn, read.csv ))
 #    user  system elapsed 
 #    7.63    0.06    7.69 
+l_csv <- lapply( fpn, read.csv ) ## import selected csv files
+comment( l_csv ) <- "data imported with lapply"
 paste( as.integer( object.size( l_csv )/1024^2 ), " MB", sep="" )
 ```
 
 ### ldply
 ```{r}
 require( plyr )
-names( fpn ) <- basename( fpn )
-df_csv <- ldply( fpn, read.csv, stringsAsFactors = FALSE )
-comment( df_csv ) <- "data imported with ldply + read.csv (default arguments)"
-df_csvchar <- ldply( fpn, .fun = read.csv, colClasses = "character", stringsAsFactors = FALSE )
-comment( df_csvchar ) <- "data imported with ldply + read.csv (colClasses='character')"
-
 ## ldply is faster and output is stored in a single data.frame
 # > system.time( ldply( fpn , read.csv, stringsAsFactors = FALSE ))
 #    user  system elapsed 
 #    5.66    0.06    5.80
+
+df_csv <- ldply( fpn, read.csv, stringsAsFactors = FALSE )
+comment( df_csv ) <- "data imported with ldply + read.csv (default arguments)"
 paste( as.integer( object.size( df_csv )/1024^2 ), " MB", sep="" )
+
+df_csvchar <- ldply( fpn, .fun = read.csv, colClasses = "character", stringsAsFactors = FALSE )
+comment( df_csvchar ) <- "data imported with ldply + read.csv (colClasses='character')"
 paste( as.integer( object.size( df_csvchar )/1024^2 ), " MB", sep="" )
 ```
 
