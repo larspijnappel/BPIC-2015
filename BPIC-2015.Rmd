@@ -37,7 +37,7 @@ paste( as.integer( object.size( l_csv )/1024^2 ), " MB", sep="" )
 
 ### ldply
 ```{r}
-require( plyr )
+library( plyr )
 ## ldply is faster and output is stored in a single data.frame
 # > system.time( ldply( fpn , read.csv, stringsAsFactors = FALSE ))
 #    user  system elapsed 
@@ -47,9 +47,9 @@ df_csv <- ldply( fpn, read.csv, stringsAsFactors = FALSE )
 comment( df_csv ) <- "data imported with ldply + read.csv (default arguments)"
 paste( as.integer( object.size( df_csv )/1024^2 ), " MB", sep="" )
 
-df_csvchar <- ldply( fpn, .fun = read.csv, colClasses = "character", stringsAsFactors = FALSE )
-comment( df_csvchar ) <- "data imported with ldply + read.csv (colClasses='character')"
-paste( as.integer( object.size( df_csvchar )/1024^2 ), " MB", sep="" )
+# df_csvchar <- ldply( fpn, .fun = read.csv, colClasses = "character", stringsAsFactors = FALSE )
+# comment( df_csvchar ) <- "data imported with ldply + read.csv (colClasses='character')"
+# paste( as.integer( object.size( df_csvchar )/1024^2 ), " MB", sep="" )
 ```
 
 
@@ -83,8 +83,8 @@ dim( df_csv )
 ```{r}
 cn <- lapply( l_csv, colnames )
 for ( i in seq_along(cn[-length(cn)]) ) { ## loop, but exclude last cn
-  x <- identical(cn[i], cn[i+1])
-  print( paste('Identical columnnames for csv ', i, ' and ', i+1, ' is ', x, sep = '') )
+  x <- identical( cn[[i]], cn[[i+1]] )
+  print( paste('Files ', i, ' + ', i+1, ' with identical colnames: ', x, sep = '') )
 }
 
 # cn[1]
@@ -141,7 +141,7 @@ summary( df2 )
 
 ## Show content of first obs. in readable format
 ### lapply
-```{r eval = FALSE}
+```{r eval=FALSE, echo=FALSE}
 t(head( l_csv[[1]], 1 ))
 ```
 
@@ -152,30 +152,11 @@ t(head( df_csv, 1 ))
 ```
 
 
-## Identicals
-```{r eval = FALSE, echo = TRUE}
-identical( l_csv[[1]][1,'action_code'], l_csv[[1]][1,'concept.name'])
-d1 <- as.character( l_csv[[1]][,'action_code'] )
-d2 <- as.character( l_csv[[1]][,'concept.name'] )
-identical( d1, d2)
-d3 <- as.character( l_csv[[1]][,'Activity'] )
-d4 <- as.character( l_csv[[1]][,'lifecycle.transition'] )
-
-d1[which(d2 %in% d1) == TRUE]
-d2[which(d2 %in% d1) == TRUE]
-d1[ ( d1 == d2 ) == FALSE]
-d2[ ( d1 == d2 ) == FALSE]
-
-d_all <- as.data.frame( cbind(d1,d2,d3,d4) )
-str(d_all)
-```
-
-
 ## Count observations for each resource
-> variables: Resource / Responsible_actor / monitoringResource
+> variables: Resource / monitoringResource / Responsible_actor
 
 ### lapply
-```{r eval = FALSE}
+```{r eval=FALSE echo=FALSE}
 ## first create a working df
 csv1 <- l_csv[[1]]
 ## variable 'responsible actor' is categorical, not quantitative.
@@ -188,56 +169,113 @@ csv3
 ```
 
 ### ldply
-> Sort the results by (1) csv-file and (2) total
 
-```{r}
+Defining function `role_summary` to summarize the total events per role per organization. By default, only cross organizational roles are returned. 
+
+```{r echo=FALSE, eval=FALSE}
+##### Defining functions `role_xorg` and `role_summary` to summarize the total events per role per organization.
+
 # df <- df_csv
 # role <- "Resource"
 # role <- "X.case..Responsible_actor"
 # role <- "monitoringResource"
 
 role_summary <- function ( role ) {
-        ## convert input parameters into an R object df$variable
+        ## GOAL: sums the total events (observations) per role per organization (csv). 
+        ## result is sorted first by role (row=ascending) then by column
+     
+        ## convert input parameters into an R object dfv (df$variable)
         ## www.r-bloggers.com/converting-a-string-to-a-variable-name-on-the-fly-and-vice-versa-in-r/
         dfv <- eval( parse( text = paste("df_csv", "$", role, sep = "" )))
-        ## Observations per role: split the counts per csv file
-        l_role <- tapply( factor( dfv ), df_csv$.id, summary )
-        summary(l_role)
+        ## events count per role, split by csv file
+        rce <- tapply( factor( dfv ), df_csv$.id, summary )
+        summary( rce )
         
         ## QAD: only csv 1 contains NA's for responsible actors: remove it.
-        if ( role == "X.case..Responsible_actor" ) l_role[[1]] <- l_role[[1]][ -length( l_role[[1]] ) ]
+        if ( role == "X.case..Responsible_actor" ) rce[[1]] <- rce[[1]][ -length( rce[[1]] ) ]
         
-        l_role <- do.call( cbind, l_role )
-        l_role[ order( l_role[,1], l_role[,2], l_role[,3], l_role[,4], l_role[,5], decreasing = TRUE ), ]   
+        ## convert the list object rce into a matrix object, then sort and return the results
+        rce <- do.call( cbind, rce )
+        rce[ order( rce[,1], rce[,2], rce[,3], rce[,4], rce[,5], decreasing = TRUE ), ]   
 }
 
+role_xorg <- function ( role ) {
+        ## GOAL: return roles which have events (observations) in more than 1 organization (csv file)
+        
+        ## first collect a summary for all roles for all organizations
+        rs <- role_summary( role )
+        
+        ## count for each role the number of organizations where events have been observed
+        ## if count is > 1 then a cross organizational role has been detected.
+        xo <- nrow( rs )
+        for ( i in seq_len( nrow( rs ))) { 
+                xo[i] <- sum( c( rs[i,1] > 0, rs[i,2] > 0, rs[i,3] > 0, rs[i,4] > 0, rs[i,5] > 0 ))
+        }
+        rs[ which( xo > 1 ), ]     
+}
+```
+
+```{r}
+role_summary <- function ( role, xorg = TRUE ) {
+        ## GOAL: sums the total events (observations) per role per organization (csv). 
+        ## result is sorted first by role (row=ascending) then by column
+        ## when xorg = TRUE then only cross organizational roles are returned (otherwise all roles)
+        
+        ## convert input argument role into an R object dfv (df$variable)
+        ## www.r-bloggers.com/converting-a-string-to-a-variable-name-on-the-fly-and-vice-versa-in-r/
+        dfv <- eval( parse( text = paste("df_csv", "$", role, sep = "" )))
+        ## for each role count events. Then split by csv file
+        rce <- tapply( factor( dfv ), df_csv$.id, summary )
+        summary( rce )
+        
+        ## QAD: only csv 1 contains NA's for responsible actors: remove it.
+        if ( role == "X.case..Responsible_actor" ) rce[[1]] <- rce[[1]][ -length( rce[[1]] ) ]
+        
+        ## convert the list object rce into a matrix object, then sort the results
+        rce <- do.call( cbind, rce )
+        rce <- rce[ order( rce[,1], rce[,2], rce[,3], rce[,4], rce[,5], decreasing = TRUE ), ]   
+        
+        if ( xorg == TRUE ) {
+                ## count for each role the number of organizations where events have been observed
+                ## if count is > 1 then a cross organizational role has been detected.
+                xo <- nrow( rce )
+                for ( i in seq_len( nrow( rce ))) { 
+                        xo[i] <- sum(c( rce[i,1] > 0, rce[i,2] > 0, rce[i,3] > 0, rce[i,4] > 0, rce[i,5] > 0))
+                }
+                rce <- rce[ which( xo > 1 ), ]  
+        }
+        
+        rce
+}
+```
+
+### Cross Organisational Roles
+
+```{r eval=FALSE, echo=FALSE}
+role_xorg ( "Resource" )
+role_xorg ( "monitoringResource" )
+## When nr. of returned results = 1 then rownames is not shown..
+role_xorg ( "X.case..Responsible_actor" )
 ```
 
 
 #### Resource
+Retrieve all `Resource` roles who act cross organizational.
 ```{r}
-role_summary( role = "Resource" )
-```
-
-
-#### Responsible_actor
-```{r}
-role_summary( role = "X.case..Responsible_actor" )
-```
-
-```{r eval = FALSE}
-## Observations per Responsible Actor: split the counts per csv file
-l_ora <- tapply( factor( df_csv$X.case..Responsible_actor ), df_csv$.id, summary )
-
-## only csv 1 contains NA's for responsible actors: remove it.
-l_ora[[1]] <- l_ora[[1]][ -length( l_ora[[1]] ) ]
-l_ora <- do.call( cbind, l_ora )
-l_ora[ order( l_ora[,1], l_ora[,2], l_ora[,3], l_ora[,4], l_ora[,5], decreasing = TRUE ), ]
+role_summary( "Resource", TRUE )
 ```
 
 #### monitoringResource
+Retrieve all `monitoringResource` roles who act cross organizational.
 ```{r}
 role_summary( role = "monitoringResource" )
+```
+
+#### Responsible_actor
+First retrieve only `Responsible_actor` roles who act cross organizational. Then list all `Responsible_actor` roles.
+```{r}
+role_summary( role = "X.case..Responsible_actor" )
+role_summary( role = "X.case..Responsible_actor", FALSE )
 ```
 
 
@@ -281,3 +319,21 @@ cor( can[,1], can[,2] )
 anEN
 ```
 
+
+## Identicals
+```{r eval = FALSE, echo = TRUE}
+identical( l_csv[[1]][1,'action_code'], l_csv[[1]][1,'concept.name'])
+d1 <- as.character( l_csv[[1]][,'action_code'] )
+d2 <- as.character( l_csv[[1]][,'concept.name'] )
+identical( d1, d2)
+d3 <- as.character( l_csv[[1]][,'Activity'] )
+d4 <- as.character( l_csv[[1]][,'lifecycle.transition'] )
+
+d1[which(d2 %in% d1) == TRUE]
+d2[which(d2 %in% d1) == TRUE]
+d1[ ( d1 == d2 ) == FALSE]
+d2[ ( d1 == d2 ) == FALSE]
+
+d_all <- as.data.frame( cbind(d1,d2,d3,d4) )
+str(d_all)
+```
