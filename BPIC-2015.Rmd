@@ -53,16 +53,22 @@ paste( as.integer( object.size( df_csv )/1024^2 ), " MB", sep="" )
 ```
 
 
-## Show numbers of (1) observations and (2) variables per file
 
-### lapply
+# Inspection of the five data files
+
+### Number of variables and observations
+For each file (organization) get a first impression of the number of events (observations) and attributes (variables) 
+
+> lapply
+
 ```{r}
 l_dim <- lapply( l_csv, dim )
 names( l_dim ) <- fn
 l_dim
 ```
 
-### ldply
+>ldply
+
 ```{r}
 ## ldply has added variable .id (which contains the source file name). 
 ## Consider this variable as categorical and trim the filename to first 8 characters.
@@ -75,11 +81,11 @@ dim( df_csv )
 # dim( df_csvchar )
 ```
 
+### Determine if all files use same variables
+Check consistency column names and show these names
 
-## Determine if all files have same variable names 
-> check consistency column names and show them
+> lapply
 
-### lapply
 ```{r}
 cn <- lapply( l_csv, colnames )
 for ( i in seq_along(cn[-length(cn)]) ) { ## loop, but exclude last cn
@@ -90,34 +96,34 @@ for ( i in seq_along(cn[-length(cn)]) ) { ## loop, but exclude last cn
 # cn[1]
 ```
 
-### ldply
+> ldply
+
 ```{r}
 names( df_csv )
 ```
 
+### Visualize total observations per organization
+> lapply
 
-## Show number of observations per file
-### lapply
 ```{r}
-barplot( unlist(lapply( l_csv, nrow )), ylab = 'observations', col = 'cyan' )
+barplot( unlist(lapply( l_csv, nrow )), ylab = 'nr. of events', col = 'cyan' )
 ```
 
-### ldply
+> ldply
+
 ```{r}
-barplot( summary( df_csv$.id ), ylab = 'observations', horiz = TRUE, col = 'green')
+barplot( summary( df_csv$.id ), ylab = 'nr. of events', horiz = TRUE, col = 'green')
 ```
 
+### Show the structure of the imported data
+> ldply
 
-## Show the structure of the imported data
-### ldply
 ```{r}
 str( df_csv )
 # str( df_csvchar )
 ```
 
-
-## Show a summary of the the imported data
-> BEFORE factorizing several variables
+### Show summary of the the imported data
 
 ```{r}
 summary( df_csv )
@@ -125,9 +131,10 @@ summary( df_csv )
 ```
 
 
-## Show a summary of the the imported data
-> AFTER factorizing several variables
-```{r eval=FALSE}
+```{r eval=FALSE, echo=FALSE}
+# ## Show a summary of the the imported data
+# > AFTER factorizing several variables
+
 df2 <- df_csv
 df2$Resource <- factor( df2$Resource )
 df2$X.case..IDofConceptCase <- factor( df2$X.case..IDofConceptCase )
@@ -139,24 +146,32 @@ summary( df2 )
 ```
 
 
-## Show content of first obs. in readable format
-### lapply
+## Show content of first event in readable format
+
 ```{r eval=FALSE, echo=FALSE}
+# > lapply
+
 t(head( l_csv[[1]], 1 ))
 ```
 
-### ldply
+> ldply
+
 ```{r}
 t(head( df_csv, 1 ))
 # t(head( df_csvchar, 1 ))
 ```
 
 
-## Count observations for each resource
-> variables: Resource / monitoringResource / Responsible_actor
 
-### lapply
-```{r eval=FALSE echo=FALSE}
+# Inspection of specific variables
+
+
+## Count events for each role
+It concerns variables Resource / monitoringResource / Responsible_actor
+
+```{r eval=FALSE, echo=FALSE}
+# > lapply
+
 ## first create a working df
 csv1 <- l_csv[[1]]
 ## variable 'responsible actor' is categorical, not quantitative.
@@ -168,7 +183,7 @@ csv3 <- as.matrix( summary(csv2) )
 csv3
 ```
 
-### ldply
+> ldply
 
 Defining function `role_summary` to summarize the total events per role per organization. By default, only cross organizational roles are returned. 
 
@@ -218,7 +233,7 @@ role_xorg <- function ( role ) {
 ```{r}
 role_summary <- function ( role, xorg = TRUE ) {
         ## GOAL: sums the total events (observations) per role per organization (csv). 
-        ## result is sorted first by role (row=ascending) then by column
+        ## result is sorted by (1) organization and (2) nr. of events per role
         ## when xorg = TRUE then only cross organizational roles are returned (otherwise all roles)
         
         ## convert input argument role into an R object dfv (df$variable)
@@ -249,40 +264,51 @@ role_summary <- function ( role, xorg = TRUE ) {
 }
 ```
 
+```{r eval=FALSE, echo=FALSE}
 ### Cross Organisational Roles
 
-```{r eval=FALSE, echo=FALSE}
 role_xorg ( "Resource" )
 role_xorg ( "monitoringResource" )
 ## When nr. of returned results = 1 then rownames is not shown..
 role_xorg ( "X.case..Responsible_actor" )
 ```
 
-
-#### Resource
-Retrieve all `Resource` roles who act cross organizational.
+### Role Resource
+Retrieve all actors who act cross organizational.
 ```{r}
 role_summary( "Resource", TRUE )
 ```
 
-#### monitoringResource
-Retrieve all `monitoringResource` roles who act cross organizational.
+### Role monitoringResource
+Retrieve all actors who act cross organizational.
 ```{r}
 role_summary( role = "monitoringResource" )
 ```
 
-#### Responsible_actor
-First retrieve only `Responsible_actor` roles who act cross organizational. Then list all `Responsible_actor` roles.
+### Role Responsible_actor
+Retrieve first all actors who act cross organizational, then list all of them.
 ```{r}
 role_summary( role = "X.case..Responsible_actor" )
 role_summary( role = "X.case..Responsible_actor", FALSE )
 ```
 
 
+## Count roles for each actor
+```{r}
+## TODO: following is not helpfull
+ar <- with( df_csv, cbind( Resource, monitoringResource, X.case..Responsible_actor ))
+head(ar)
+
+# rl_r <- role_summary( "Resource", FALSE )
+# rl_mr <- role_summary( role = "monitoringResource", FALSE )
+# rl_ra <- role_summary( role = "X.case..Responsible_actor", FALSE )
+```
+
+
 ## Per csv, indicate nr. of unique values
 
 ### 1
-```{r eval = FALSE, echo = FALSE}
+```{r eval=FALSE, echo=FALSE}
 l <- data.frame( matrix( nrow=5, ncol=7 ))
 comment(l) <- "per csv, indicate nr. of unique values"
 colnames(l) <- c("caseStatus", "caseProcedure", "IDofCOnceptCase", "concept.name", "ActivityNameNL", "ActivityNameEN", "requestComplete")
@@ -300,7 +326,7 @@ l
 ```
 
 ### 2
-```{r eval = FALSE, echo = FALSE}
+```{r eval=FALSE, echo=FALSE}
 anNL <- data.matrix( unique(l_csv[[1]][,'activityNameNL'] ))
 anNL <- cbind( anNL, 1:nrow( anNL ))
 anEN <- data.matrix( unique( l_csv[[1]][,'activityNameEN'] ))
@@ -315,13 +341,13 @@ cor( can[,1], can[,2] )
 
 
 ## Activities EN
-```{r eval = FALSE, echo = FALSE}
+```{r eval=FALSE, echo=FALSE}
 anEN
 ```
 
 
 ## Identicals
-```{r eval = FALSE, echo = TRUE}
+```{r eval=FALSE, echo=FALSE}
 identical( l_csv[[1]][1,'action_code'], l_csv[[1]][1,'concept.name'])
 d1 <- as.character( l_csv[[1]][,'action_code'] )
 d2 <- as.character( l_csv[[1]][,'concept.name'] )
