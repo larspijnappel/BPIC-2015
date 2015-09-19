@@ -151,13 +151,13 @@ summary( df2 )
 ```{r eval=FALSE, echo=FALSE}
 # > lapply
 
-t(head( l_csv[[1]], 1 ))
+print( t(head( l_csv[[1]], 1 )), quote = FALSE)
 ```
 
 > ldply
 
 ```{r}
-t(head( df_csv, 1 ))
+print( t(head( df_csv, 1 )), quote = FALSE )
 # t(head( df_csvchar, 1 ))
 ```
 
@@ -221,7 +221,7 @@ role_xorg <- function ( role ) {
         rs <- role_summary( role )
         
         ## count for each role the number of organizations where events have been observed
-        ## if count is > 1 then a cross organizational role has been detected.
+        ## if xo-count is > 1 then a cross organizational role has been detected.
         xo <- nrow( rs )
         for ( i in seq_len( nrow( rs ))) { 
                 xo[i] <- sum( c( rs[i,1] > 0, rs[i,2] > 0, rs[i,3] > 0, rs[i,4] > 0, rs[i,5] > 0 ))
@@ -286,7 +286,7 @@ role_summary( role = "monitoringResource" )
 ```
 
 ### Role Responsible_actor
-Retrieve first all actors who act cross organizational, then list all of them.
+First retrieve all actors who act cross organizational, then list all of them.
 ```{r}
 role_summary( role = "X.case..Responsible_actor" )
 role_summary( role = "X.case..Responsible_actor", FALSE )
@@ -297,6 +297,18 @@ role_summary( role = "X.case..Responsible_actor", FALSE )
 ```{r}
 ## TODO: following is not helpfull
 ar <- with( df_csv, cbind( Resource, monitoringResource, X.case..Responsible_actor ))
+head(ar)
+
+# ar <- data.frame( Role = "Resource", Actor = df_csv$Resource)
+ar <- rbind( data.frame( Role = "Resource", Actor = df_csv$Resource ), data.frame( Role = "monitoringResource", Actor = df_csv$monitoringResource ), data.frame( Role = "X.case..Responsible_actor", Actor = df_csv$X.case..Responsible_actor))
+
+summary(ar)
+ar <- tapply( factor( ar$Actor ), ar$Role, summary )
+# Following code results in an error:
+#         Warning message:
+# In (function (..., deparse.level = 1)  :
+#   number of rows of result is not a multiple of vector length (arg 1)
+ar <- do.call( cbind, ar )
 head(ar)
 
 # rl_r <- role_summary( "Resource", FALSE )
